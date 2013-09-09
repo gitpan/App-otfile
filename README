@@ -1,0 +1,10 @@
+NAME
+    App::otfile - Serve a single file, once, via HTTP over the local
+    network.
+
+DESCRIPTION
+    See otfile. The module App::otfile is just a placeholder for CPAN.
+
+SEE ALSO
+    otfile.
+

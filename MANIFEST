@@ -10,4 +10,5 @@ dist.ini
 lib/App/otfile.pm
 script/otfile
 t/basic.t
+t/release-kwalitee.t
 t/release-pod-syntax.t

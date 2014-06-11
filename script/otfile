@@ -13,27 +13,32 @@ use IO::Socket::INET;
 my $port           = 1234;
 my $auto_port      = 0;
 my $serve_multiple = 0;
+my $serve_self     = 0;
+
 GetOptions(
     'auto'     => \$auto_port,
     'port=i'   => \$port,
     'multiple' => \$serve_multiple,
+    'self'     => \$serve_self,
     'help'     => sub { pod2usage(1) } ) or pod2usage(2);
 
+unshift @ARGV, __FILE__ if $serve_self;
 my $file = shift or do { warn "Must provide file to serve\n"; pod2usage(2) };
 die "Unable to read '$file'\n" unless -r $file;
 
 # try loading some optional dependencies
 my %opt_depend;
+
+# we try for Mac::Pasteboard first for pre 0.06 people that have it
+# but don't have Clipboard installed
+
 eval { require Mac::Pasteboard; $opt_depend{pasteboard} = 1 };
-eval { require File::MMagic;    $opt_depend{mmagic}     = 1 };
-eval { require UUID::Tiny;      $opt_depend{uuid}       = 1 };
-eval { require URI::Escape;     $opt_depend{uri_escape} = 1 };
-eval {
-    require Term::ProgressBar;
-    no warnings( 'redefine', 'once' );
-    *Term::ProgressBar::term_size = sub { return 10 };
-    $opt_depend{progress} = 1;
-};
+eval { require Clipboard;       $opt_depend{clipboard}  = 1 }
+    unless $opt_depend{pasteboard};
+eval { require File::MMagic;      $opt_depend{mmagic}     = 1 };
+eval { require UUID::Tiny;        $opt_depend{uuid}       = 1 };
+eval { require URI::Escape;       $opt_depend{uri_escape} = 1 };
+eval { require Term::ProgressBar; $opt_depend{progress}   = 1 };
 
 my $type     = get_file_type($file);
 my $size     = -s $file;
@@ -58,9 +63,16 @@ while ( !$server ) {
 }
 
 my $url = "http://$ip:$port$path";
+
 say "Serving '$file' as '$filename', size $size, type $type";
+
 if ( $opt_depend{pasteboard} ) {
     Mac::Pasteboard::pbcopy($url);
+    say "$url copied to clipboard.";
+}
+elsif ( $opt_depend{clipboard} ) {
+    Clipboard->import;    # finds OS driver
+    Clipboard->copy($url);
     say "$url copied to clipboard.";
 }
 else {
@@ -92,9 +104,10 @@ while ( my $client = $server->accept() ) {
     my $p;
     if ( $opt_depend{progress} ) {
         $p = Term::ProgressBar->new(
-            {   name  => $filename,
-                count => $size,
-                ETA   => "linear",
+            {   name       => $filename,
+                count      => $size,
+                ETA        => "linear",
+                term_width => 40,
             } );
         $p->minor(0);
     }
@@ -179,12 +192,16 @@ Use specified port, defaults to 1234.
 
 =item B<--multiple> or B<-m>
 
-Don't exit after serving the file the first time. To serve a file to multiple
+Don't exit after serving the file the first time. For serving a file to multiple
 people. Requires, CTL+C to exit.
+
+=item B<--self> or B<-s>
+
+Serve a copy of the otfile script.
 
 =item B<--help> or B<-h>
 
-this help information
+This help information.
 
 =back
 
